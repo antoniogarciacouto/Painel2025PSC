@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Painel Executivo PSC — Execução 2025</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg:#0d0f14; --surface:#12151e; --surface2:#1a1e29; --border:#252a38; --text:#e8eaf0; --text-muted:#8b92a8; --text-dim:#555c72; --accent:#4e9fff; --accent2:#c8a96e; --accent3:#6ed9b0; }
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;padding-bottom:40px;}
+    header{background:var(--surface);border-bottom:1px solid var(--border);padding:24px 40px;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;}
+    header h1{font-family:'DM Serif Display',serif;font-size:24px;font-weight:normal;}
+    .muted{color:var(--text-muted);font-size:14px;}
+    .container{max-width:1200px;margin:0 auto;padding:28px 20px;}
+    .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:18px;}
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;}
+    .card-title{font-size:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;}
+    .card-value{font-family:'DM Mono',monospace;font-size:22px;font-weight:500;}
+    .controls{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;}
+    select,input{background:var(--surface);border:1px solid var(--border);color:var(--text);padding:10px 12px;border-radius:10px;outline:none;font-size:13px;}
+    input{flex:1;min-width:220px;}
+    .table{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;}
+    table{width:100%;border-collapse:collapse;text-align:left;}
+    th,td{padding:14px 18px;border-bottom:1px solid var(--border);vertical-align:middle;}
+    th{background:var(--surface2);font-size:12px;color:var(--text-muted);text-transform:uppercase;font-weight:500;letter-spacing:.5px;position:sticky;top:0;z-index:5;}
+    tr:hover{background:var(--surface2);}
+    .mono{font-family:'DM Mono',monospace;}
+    .right{text-align:right;}
+    .pill{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;border:1px solid var(--border);color:var(--text-muted);font-size:12px;background:rgba(255,255,255,.02);}
+    @media (max-width:980px){.cards{grid-template-columns:repeat(2,1fr);}}
+    @media (max-width:560px){.cards{grid-template-columns:1fr;}header{padding:18px 16px;}}
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Polo Sociocultural</h1>
+      <div class="muted">Painel Executivo — Execução 2025</div>
+    </div>
+    <div class="pill" id="meta">Carregando…</div>
+  </header>
+
+  <div class="container">
+    <div class="cards">
+      <div class="card"><div class="card-title">Orçado Total</div><div class="card-value" id="orcado">—</div></div>
+      <div class="card"><div class="card-title">Realizado</div><div class="card-value" id="realizado" style="color:var(--accent)">—</div></div>
+      <div class="card"><div class="card-title">Duodécimo</div><div class="card-value" id="duodecimo" style="color:var(--accent3)">—</div></div>
+      <div class="card"><div class="card-title">Pessoas atendidas</div><div class="card-value" id="pessoas" style="color:var(--accent2)">—</div></div>
+    </div>
+
+    <div class="controls">
+      <select id="fproj"><option value="">Todos os projetos</option></select>
+      <select id="funid"><option value="">Todas as unidades (produção)</option></select>
+      <input id="q" type="text" placeholder="Buscar projeto… (ex.: FLIP, Mutuá, Exposições)"/>
+    </div>
+
+    <div class="table">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:92px;">Código</th>
+            <th>Projeto</th>
+            <th class="right">Realizado</th>
+            <th class="right">Orçado</th>
+            <th class="right">Execução (%)</th>
+            <th class="right">Atendimentos</th>
+            <th class="right">Custo / pessoa</th>
+          </tr>
+        </thead>
+        <tbody id="tb"></tbody>
+      </table>
+    </div>
+  </div>
+
+<script>
+  const DATASET_URL = 'psc_dataset_execucao_2025.json';
+  const brl = (c) => ((c||0)/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+  const pct = (r,o) => (!o||o<=0)?0:(r/o)*100;
+
+  let ds=null, rows=[];
+
+  function fillSelect(id, items, val, label){
+    const el=document.getElementById(id);
+    items.forEach(it=>{
+      const opt=document.createElement('option');
+      opt.value=val(it);
+      opt.textContent=label(it);
+      el.appendChild(opt);
+    });
+  }
+
+  function render(list){
+    const tb=document.getElementById('tb');
+    tb.innerHTML='';
+    list
+      .sort((a,b)=>(Number(b.realizado_centavos)||0)-(Number(a.realizado_centavos)||0))
+      .forEach(r=>{
+        const real=Number(r.realizado_centavos)||0;
+        const orc=Number(r.orcado_centavos)||0;
+        const people=Number(r.pessoas_total)||0;
+        const exec=pct(real,orc);
+        const cpp=(people>0)?Math.round(real/people):0;
+
+        const tr=document.createElement('tr');
+        tr.innerHTML=`
+          <td class="mono" style="color:var(--text-muted)">${r.projeto_id||''}</td>
+          <td style="font-weight:500">${r.projeto_nome||''}</td>
+          <td class="mono right">${brl(real)}</td>
+          <td class="mono right">${brl(orc)}</td>
+          <td class="mono right">${exec.toFixed(1)}%</td>
+          <td class="mono right" style="color:var(--accent2)">${people.toLocaleString('pt-BR')}</td>
+          <td class="mono right" style="color:var(--text-dim)">${brl(cpp)}</td>
+        `;
+        tb.appendChild(tr);
+      });
+  }
+
+  function updateCards(list, unidade){
+    const orcado=list.reduce((a,r)=>a+(Number(r.orcado_centavos)||0),0);
+    const realizado=list.reduce((a,r)=>a+(Number(r.realizado_centavos)||0),0);
+    const duodecimo=list.reduce((a,r)=>a+(Number(r.duodecimo_centavos)||0),0);
+
+    let pessoas=0;
+    if(unidade){
+      pessoas = ds.fato.producao.filter(p=>(p.unid_fixa||'')===unidade).reduce((a,p)=>a+(Number(p.pessoas_total)||0),0);
+    } else {
+      pessoas=list.reduce((a,r)=>a+(Number(r.pessoas_total)||0),0);
+    }
+
+    document.getElementById('orcado').textContent=brl(orcado);
+    document.getElementById('realizado').textContent=brl(realizado);
+    document.getElementById('duodecimo').textContent=brl(duodecimo);
+    document.getElementById('pessoas').textContent=(pessoas||0).toLocaleString('pt-BR');
+  }
+
+  function apply(){
+    const fproj=document.getElementById('fproj').value;
+    const funid=document.getElementById('funid').value;
+    const q=(document.getElementById('q').value||'').trim().toLowerCase();
+
+    let list=rows.slice();
+
+    if(fproj) list=list.filter(r=>r.projeto_id===fproj);
+
+    if(funid){
+      const set=new Set(ds.fato.producao.filter(p=>(p.unid_fixa||'')===funid).map(p=>p.projeto_id).filter(Boolean));
+      list=list.filter(r=>set.has(r.projeto_id));
+    }
+
+    if(q) list=list.filter(r=>((r.projeto_nome||'')+' '+(r.projeto_id||'')).toLowerCase().includes(q));
+
+    render(list);
+    updateCards(list, funid);
+  }
+
+  async function init(){
+    const res=await fetch(DATASET_URL);
+    ds=await res.json();
+    document.getElementById('meta').textContent=`Gerado em ${new Date(ds.meta.gerado_em).toLocaleString('pt-BR')}`;
+
+    rows=ds.agregados.por_projeto||[];
+
+    const projetos=(ds.dim.projetos||[]).slice().sort((a,b)=>(a.projeto_id||'').localeCompare(b.projeto_id||''));
+    fillSelect('fproj', projetos, p=>p.projeto_id, p=>`${p.projeto_id} — ${p.nome||''}`);
+
+    const unidades=(ds.dim.unidades||[]).slice();
+    fillSelect('funid', unidades, u=>u.unidade_nome, u=>u.unidade_nome);
+
+    document.getElementById('fproj').addEventListener('change', apply);
+    document.getElementById('funid').addEventListener('change', apply);
+    document.getElementById('q').addEventListener('input', apply);
+
+    apply();
+  }
+  window.onload=init;
+</script>
+</body>
+</html>
