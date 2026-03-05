@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Executivo PSC 2025</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        /* Variáveis do Dark Mode Premium */
+        :root {
+            --bg: #0d0f14; 
+            --surface: #12151e; 
+            --surface2: #1a1e29; 
+            --border: #252a38;
+            --text: #e8eaf0; 
+            --text-muted: #8b92a8; 
+            --text-dim: #555c72;
+            --accent: #4e9fff; /* Azul Padrão */
+            --accent2: #c8a96e; /* Dourado (Pessoas) */
+            --accent3: #6ed9b0; /* Verde (Saúde Financeira) */
+            --accent4: #e06060; /* Vermelho (Alerta) */
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body { 
+            background: var(--bg); 
+            color: var(--text); 
+            font-family: 'DM Sans', sans-serif; 
+            min-height: 100vh; 
+            padding-bottom: 40px;
+        }
+
+        /* Cabeçalho */
+        header { 
+            background: var(--surface); 
+            border-bottom: 1px solid var(--border); 
+            padding: 24px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        header h1 { font-family: 'DM Serif Display', serif; font-size: 24px; font-weight: normal; }
+        
+        /* Container Principal */
+        .container { max-width: 1200px; margin: 0 auto; padding: 40px 20px; }
+
+        /* Cards de Visão Geral */
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            margin-bottom: 40px;
+        }
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+        }
+        .card-title { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+        .card-value { font-family: 'DM Mono', monospace; font-size: 32px; font-weight: 500; }
+
+        /* Tabela Principal */
+        .table-container {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        table { width: 100%; border-collapse: collapse; text-align: left; }
+        th, td { padding: 16px 24px; border-bottom: 1px solid var(--border); }
+        th { 
+            background: var(--surface2); 
+            font-size: 12px; 
+            color: var(--text-muted); 
+            text-transform: uppercase; 
+            font-weight: 500; 
+            letter-spacing: 0.5px;
+        }
+        tr:hover { background: var(--surface2); }
+        .mono { font-family: 'DM Mono', monospace; }
+
+        /* Modal (Drill-down) */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(4px);
+            display: flex; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.3s;
+            z-index: 1000;
+        }
+        .modal-overlay.open { opacity: 1; pointer-events: auto; }
+        
+        .modal {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            width: 100%; max-width: 600px;
+            padding: 32px;
+            position: relative;
+            transform: translateY(20px); transition: transform 0.3s;
+        }
+        .modal-overlay.open .modal { transform: translateY(0); }
+        
+        .modal-close {
+            position: absolute; top: 24px; right: 24px;
+            background: none; border: none; color: var(--text-muted);
+            font-size: 20px; cursor: pointer;
+        }
+        .modal-close:hover { color: var(--text); }
+        
+        .modal-title { font-family: 'DM Serif Display', serif; font-size: 28px; margin-bottom: 8px; }
+        .modal-subtitle { font-size: 14px; color: var(--text-dim); margin-bottom: 32px; }
+        
+        /* Area do Gráfico */
+        .chart-container {
+            position: relative;
+            height: 250px;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Polo Sociocultural</h1>
+        <div style="font-size: 14px; color: var(--text-muted);">Gestão Executiva 2025</div>
+    </header>
+
+    <div class="container">
+        <div class="cards-grid">
+            <div class="card">
+                <div class="card-title">Orçamento Global</div>
+                <div class="card-value" id="card-orcado">Carregando...</div>
+            </div>
+            <div class="card">
+                <div class="card-title">Realizado Até o Momento</div>
+                <div class="card-value" id="card-realizado" style="color: var(--accent);">Carregando...</div>
+            </div>
+            <div class="card">
+                <div class="card-title">Total de Pessoas Atendidas</div>
+                <div class="card-value" id="card-impacto" style="color: var(--accent2);">Carregando...</div>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <table id="tabela-projetos">
+                <thead>
+                    <tr>
+                        <th>Código</th>
+                        <th>Projeto</th>
+                        <th>Custo Realizado</th>
+                        <th style="width: 200px;">Execução (%)</th>
+                        <th>Atendimentos</th>
+                        <th>Custo / Pessoa</th>
+                    </tr>
+                </thead>
+                <tbody id="proj-table-body">
+                    </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="proj-modal-overlay">
+        <div class="modal">
+            <button class="modal-close" onclick="fecharModal()">✕</button>
+            <div class="modal-title" id="proj-md-name">Nome do Projeto</div>
+            <div class="modal-subtitle">Perfil Detalhado de Público</div>
+            
+            <div class="chart-container">
+                <canvas id="graficoPerfil"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let dadosFinanceiros = [];
+        let dadosProducao = [];
+        let dadosCruzados = [];
+        let meuGrafico = null;
+
+        // 1. CARREGAR OS ARQUIVOS JSON (Atualizados para 2025)
+        async function carregarDados() {
+            try {
+                const resFin = await fetch('dados_financeiros_2025.json');
+                dadosFinanceiros = await resFin.json();
+
+                const resProd = await fetch('dados_producao_2025_detalhado.json');
+                dadosProducao = await resProd.json();
+
+                processarCruzamento();
+                atualizarCardsGerais();
+                renderizarTabelaProjetos();
+                
+            } catch (erro) {
+                console.error("Erro de carregamento:", erro);
+                document.getElementById('card-orcado').innerHTML = "<span style='font-size:16px; color:var(--accent4)'>Erro ao carregar os dados. Verifique se os arquivos JSON estão na mesma pasta.</span>";
+            }
+        }
+
+        // 2. CRUZAR FINANÇAS E PRODUÇÃO
+        function processarCruzamento() {
+            dadosCruzados = dadosFinanceiros.map(projetoFin => {
+                const producaoEncontrada = dadosProducao.find(
+                    prod => prod.CODIGO_FINANCEIRO === projetoFin.CODIGO_PROJETO
+                );
+
+                const totalAtendimentos = producaoEncontrada ? producaoEncontrada.TOTAL_ATENDIMENTOS : 0;
+                
+                // Trata a divisão por zero
+                const custoPorAtendimento = totalAtendimentos > 0 ? (projetoFin.REALIZADO_ATE / totalAtendimentos) : 0;
+                const pctExecucao = projetoFin.ORCADO_TOTAL > 0 ? (projetoFin.REALIZADO_ATE / projetoFin.ORCADO_TOTAL) * 100 : 0;
+
+                return {
+                    ...projetoFin,
+                    TOTAL_ATENDIMENTOS: totalAtendimentos,
+                    CUSTO_POR_ATENDIMENTO: custoPorAtendimento,
+                    PCT_EXECUCAO: pctExecucao,
+                    PERFIL: {
+                        comerciario: producaoEncontrada ? producaoEncontrada.ATEND_COMERCIARIOS : 0,
+                        dependente: producaoEncontrada ? producaoEncontrada.ATEND_DEPENDENTES : 0,
+                        geral: producaoEncontrada ? producaoEncontrada.ATEND_PUB_GERAL : 0,
+                        naoIdentificado: producaoEncontrada ? producaoEncontrada.ATEND_NAO_IDENTIFICADO : 0
+                    }
+                };
+            });
+        }
+
+        // 3. ATUALIZAR CARDS GERAIS
+        function atualizarCardsGerais() {
+            const totalOrcado = dadosCruzados.reduce((acc, p) => acc + (p.ORCADO_TOTAL || 0), 0);
+            const totalRealizado = dadosCruzados.reduce((acc, p) => acc + (p.REALIZADO_ATE || 0), 0);
+            const totalPessoas = dadosCruzados.reduce((acc, p) => acc + (p.TOTAL_ATENDIMENTOS || 0), 0);
+            
+            document.getElementById('card-orcado').innerText = totalOrcado.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'});
+            document.getElementById('card-realizado').innerText = totalRealizado.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'});
+            document.getElementById('card-impacto').innerText = totalPessoas.toLocaleString('pt-BR');
+        }
+
+        // 4. RENDERIZAR TABELA COM BARRA DE PROGRESSO
+        function renderizarTabelaProjetos() {
+            const tbody = document.getElementById('proj-table-body');
+            tbody.innerHTML = '';
+
+            dadosCruzados.forEach(projeto => {
+                if(projeto.ORCADO_TOTAL > 0 || projeto.TOTAL_ATENDIMENTOS > 0) {
+                    
+                    // Lógica de Cores da Barra (Verde -> Amarelo -> Vermelho)
+                    let corBarra = "var(--accent3)"; 
+                    if(projeto.PCT_EXECUCAO > 90 && projeto.PCT_EXECUCAO <= 110) corBarra = "#f39c12"; 
+                    else if (projeto.PCT_EXECUCAO > 110) corBarra = "var(--accent4)"; 
+
+                    let larguraBarra = projeto.PCT_EXECUCAO > 100 ? 100 : projeto.PCT_EXECUCAO;
+
+                    const tr = document.createElement('tr');
+                    tr.style.cursor = 'pointer';
+                    
+                    tr.innerHTML = `
+                        <td class="mono" style="color:var(--text-muted)">${projeto.CODIGO_PROJETO}</td>
+                        <td style="font-weight:500">${projeto.NOME_PROJETO}</td>
+                        <td class="mono">${projeto.REALIZADO_ATE.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})}</td>
+                        
+                        <td>
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <span class="mono" style="font-size:12px; width:45px; text-align:right;">${projeto.PCT_EXECUCAO.toFixed(1)}%</span>
+                                <div style="flex:1; height:6px; background:var(--border); border-radius:3px; overflow:hidden;">
+                                    <div style="width:${larguraBarra}%; height:100%; background:${corBarra};"></div>
+                                </div>
+                            </div>
+                        </td>
+
+                        <td class="mono" style="color: var(--accent2)">${projeto.TOTAL_ATENDIMENTOS.toLocaleString('pt-BR')}</td>
+                        <td class="mono" style="color: var(--text-dim)">${projeto.CUSTO_POR_ATENDIMENTO.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})}</td>
+                    `;
+                    
+                    tr.onclick = () => abrirModalProjeto(projeto);
+                    tbody.appendChild(tr);
+                }
+            });
+        }
+
+        // 5. FUNÇÕES DO MODAL E GRÁFICO
+        function abrirModalProjeto(projeto) {
+            document.getElementById('proj-md-name').innerText = projeto.NOME_PROJETO;
+            document.getElementById('proj-modal-overlay').classList.add('open');
+            renderizarGraficoPerfil(projeto.PERFIL);
+        }
+
+        function fecharModal() {
+            document.getElementById('proj-modal-overlay').classList.remove('open');
+        }
+
+        // Fecha o modal ao clicar fora da caixa
+        document.getElementById('proj-modal-overlay').addEventListener('click', function(e) {
+            if (e.target === this) fecharModal();
+        });
+
+        function renderizarGraficoPerfil(perfil) {
+            const ctx = document.getElementById('graficoPerfil').getContext('2d');
+            if (meuGrafico) meuGrafico.destroy();
+
+            const semAtendimentos = (perfil.comerciario + perfil.dependente + perfil.geral + perfil.naoIdentificado) === 0;
+
+            meuGrafico = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Comerciários', 'Dependentes', 'Público Geral', 'Não Identificado'],
+                    datasets: [{
+                        data: semAtendimentos ? [0,0,0,0] : [perfil.comerciario, perfil.dependente, perfil.geral, perfil.naoIdentificado],
+                        backgroundColor: ['#4e9fff', '#c8a96e', '#6ed9b0', '#3b4053'],
+                        borderColor: '#12151e',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false, cutout: '75%',
+                    plugins: {
+                        legend: { position: 'right', labels: { color: '#e8eaf0', font: { family: "'DM Sans'" }, padding: 20 } },
+                        tooltip: { callbacks: { label: function(c) { return ' ' + c.parsed.toLocaleString('pt-BR') + ' pessoas'; } } }
+                    }
+                }
+            });
+        }
+
+        // Dispara o código ao abrir a página
+        window.onload = carregarDados;
+    </script>
+</body>
+</html>
